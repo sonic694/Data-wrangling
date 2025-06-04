@@ -1,0 +1,192 @@
+---
+title: "1.4.2 Scrape a webpage: Importing tabular files stored online"
+author: ""
+date: ""
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE) 
+
+# If necessary, install the {rvest} package: 
+# install.packages("rvest")
+
+library(readr)
+library(rvest)
+
+```
+
+## Importing tabular files stored online
+
+The most basic form of getting data from online is to import tabular (i.e. . txt, .csv) or Excel files that are being hosted online. Importing tabular data is especially common for the many types of government data available online.
+
+To illustrate we will use "Domestic Airlines - On Time Performance". This .csv file covers monthly punctuality and reliability data of major domestic and regional airlines operating between Australian airports.
+
+You can use `{read.csv}` or `{read.table}` functions to read online data depending upon the format of the data file. In fact, reading online .csv or .txt file is just like reading tabular data. The only difference is, you need to provide the URL of the data instead of the file name as follows:
+
+```{r ontime_url}
+# create a character string of the url for the online csv file
+url <- "https://data.gov.au/dataset/29128ebd-dbaa-4ff5-8b86-d9f30de56452/resource/cf663ed1-0c5e-497f-aea9-e74bfda9cf44/download/otptimeseriesweb.csv"
+
+```
+
+Next, as the online data is a .csv file, you can read this data file using `read.csv()` or `read_csv()` function.
+
+```{r ontime_data}
+# use read_csv to import
+ontime_data <- read_csv(url)
+
+# display first six rows and four variables in the data
+ontime_data[1:6, 1:4]
+
+```
+
+## Importing Excel files stored online
+
+A similar approach can be used for accessing Excel files stored online. We can practice by using labour force statistics produced by the Australian Bureau of Statistics. First we specify the URL where the file is saved:
+
+```{r lf_url}
+lf_url <- "https://www.abs.gov.au/statistics/labour/employment-and-unemployment/labour-force-australia-detailed/aug-2021/6291012.xls"
+
+```
+
+We then need to tell R to download this file as a temporary file:
+
+```{r temp_file}
+tmp <- tempfile(fileext = ".xls") 
+download.file(lf_url, destfile = tmp, mode = "wb") 
+
+```
+
+The `tempfile()` function from base R returns a vector of character strings that represent a file names for temporary files. The mode in `download.file()` is important for Windows machines, it might not be needed for Unix and Apple.
+
+<!-- We can now use our usual Excel packages to access the file. Because this Excel file is in the .XLS format, we can use the `{readxl}` package. A recent update to `{openxlsx}` will also now allow it to open .XLS files.  -->
+
+As we have not yet opened the file, we don't know how many sheets it contains, nor which sheet is relevant for our analysis:
+
+```{r lf_sheets}
+lf_sheets <- readxl::excel_sheets(tmp) 
+lf_sheets
+
+```
+
+For the purposes of this exercise, we need to access the "Data1" worksheet, and skip a few rows at the top:
+
+```{r labour_force}
+labour_force <- readxl::read_xls(tmp, sheet = "Data1", skip = 9)
+head(labour_force)
+
+```
+
+## Scraping HTML table data
+
+Sometimes, web pages contain several HTML tables and you may want to read the data from that HTML table. The simplest approach to scraping HTML table data directly into R is by using the `{rvest}` package. Recall that HTML tables are contained within tags; therefore, to extract the tables, you need to use the `html_nodes()` function to select the `nodes`.
+
+To illustrate, you will use the example from the help page for `{rvest}`, which loads all tables from the U.S. Social Security webpage.
+
+If you have not installed the `{rvest}` package, uncomment line 13 (in the first code chunk) and install it now.
+
+You will use `read_html()` to locate the URL of the HTML table. When you use `read_html()`, all table nodes that exist on the webpage will be captured.
+
+```{r births}
+births <- read_html("https://www.ssa.gov/oact/babynames/numberUSbirths.html")
+
+```
+
+In this example, using the length function you can see that the `html_nodes()` captures 1 HTML table.
+
+```{r births_nodes}
+length(html_nodes(births, "table"))
+
+```
+
+In this example the webpage included only one table and this first table on the webpage is the place where your data is located, thus, you will select the first element of the `html_nodes`.
+
+```{r births_tables}
+# This lists all of the tables 
+alltables <- html_nodes(births, "table")
+
+```
+
+Now we need to select the first element of the nodes:
+
+```{r births_data}
+# select the first element of the html_nodes
+births_data <- html_table(alltables[[1]])
+
+# Note, you could also use this commented-out line to achieve the same, without first creating the alltables object
+# births_data<- html_table(html_nodes(births, "table")[[1]])
+
+# view the header of the births_data
+
+head(births_data)
+
+```
+
+However, in some cases the webpage can include data from a few additional tables used to format other parts of the page (i.e. table of contents, table of figures, advertisements, etc.). If this is the case, one needs to scan the html source of the webpage and select the table(s) that the data are located.
+
+
+## APIs and Specialist Packages 
+Some websites are able to interact directly with R through APIs (Application Programming Interface), or via a package that interacts specifically with a particular website. Examples of these packages include the {twitteR} and {spotifyR} packages, which interact with the Twitter and Spotify APIs, or the {plumber} package, which works with APIs more generally. 
+
+Although it doesn't interact with APIs, the {quantmod} package is designed to interact with specific websites, in this case websites that report financial market data. 
+
+```{r quantmod} 
+library(quantmod)
+
+``` 
+
+It has a basic function that obtains the financial information: 
+
+``` {r all_ords}
+# All Ordinaries Index
+all_ords <- getSymbols("^AXJO", auto.assign = FALSE) # "^AXJO is the symbol for the ASX All Ordinaries 
+
+``` 
+
+It can also obtain currency exchange rates: 
+
+``` {r aud_usd}
+# Aussie Dollar / US Dollar Exchange Rate
+aud_usd <- getSymbols("AUDUSD=X", auto.assign = FALSE) # "AUDUSD=X" is the symbol for the Aussie Dollar / US Dollar exchange rate 
+
+``` 
+
+Also commodities prices: 
+
+``` {r gold} 
+# Gold price (US Dollars)
+gold <- getSymbols("GC=F", auto.assign = FALSE) 
+
+``` 
+
+Or company prices: 
+
+``` {r qantas}
+qantas <- getSymbols("QAN.AX", auto.assign = FALSE) 
+
+``` 
+
+After retrieving prices, it can also produce plots: 
+
+``` {r qantas_plot}
+chartSeries(qantas, type = "bars", theme = chartTheme("white"), name = "QAN")
+
+
+``` 
+
+It also allows you to set different date ranges with the `subset` argument: 
+
+``` {r gold_plot}
+chartSeries(gold, type = "matchsticks", subset = "2020::2021", theme = chartTheme("black"))
+
+``` 
+
+The last example showed that the timeframe can be set in years, but it's also possible to be more precise: 
+
+``` {r all_ords_plot}
+chartSeries(all_ords, type = "candlesticks", subset = "2021-04-01::2021-06-30", theme = chartTheme("black"), name = "All Ordinaries")
+
+``` 
+
